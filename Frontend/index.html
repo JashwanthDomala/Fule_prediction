@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title>Fuel Price Prediction</title>
+    <script src="chart.js"></script>
+</head>
+
+<body style="font-family: Arial; text-align:center; padding:20px;">
+
+```
+<h1>Fuel Price Prediction</h1>
+
+<!-- Years Input -->
+<input type="number" id="years" placeholder="Enter years" />
+<button onclick="getPrediction()">Predict Graph</button>
+
+<br><br>
+
+<!-- Date Input -->
+<input type="date" id="dateInput" />
+<button onclick="getPriceByDate()">Get Price</button>
+
+<h3 id="result"></h3>
+
+<br>
+<canvas id="chart" width="800" height="400"></canvas>
+
+<script>
+    let fullData = [];
+
+    async function getPrediction() {
+        const years = document.getElementById("years").value;
+
+        const response = await fetch(`http://127.0.0.1:8000/predict?years=${years}`);
+        const data = await response.json();
+
+        fullData = data;
+
+        const labels = data.map(item => new Date(item.ds).toLocaleDateString());
+        const prices = data.map(item => item.yhat);
+
+        const ctx = document.getElementById('chart').getContext('2d');
+
+        if (window.myChart) {
+            window.myChart.destroy();
+        }
+
+        window.myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Predicted Fuel Price',
+                    data: prices,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true
+            }
+        });
+    }
+
+    function getPriceByDate() {
+        const selectedDate = document.getElementById("dateInput").value;
+
+        if (!selectedDate || fullData.length === 0) {
+            document.getElementById("result").innerText = "Please generate prediction first.";
+            return;
+        }
+
+        // Find closest date
+        let closest = fullData.reduce((prev, curr) => {
+            return Math.abs(new Date(curr.ds) - new Date(selectedDate)) <
+                   Math.abs(new Date(prev.ds) - new Date(selectedDate)) ? curr : prev;
+        });
+
+        document.getElementById("result").innerText =
+            `Predicted Price on ${selectedDate} ≈ ₹${closest.yhat.toFixed(2)}`;
+    }
+</script>
+```
+
+</body>
+</html>
