@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html>
 <head>
     <title>Fuel Price Prediction</title>
@@ -8,32 +7,37 @@
 
 <body style="font-family: Arial; text-align:center; padding:20px;">
 
-```
 <h1>Fuel Price Prediction</h1>
 
-<!-- Years Input -->
 <input type="number" id="years" placeholder="Enter years" />
 <button onclick="getPrediction()">Predict Graph</button>
 
 <br><br>
 
-<!-- Date Input -->
 <input type="date" id="dateInput" />
 <button onclick="getPriceByDate()">Get Price</button>
 
 <h3 id="result"></h3>
 
 <br>
-<canvas id="chart" width="600px" height="300px"></canvas>
+<canvas id="chart" width="600" height="300"></canvas>
 
 <script>
-    let fullData = [];
+let fullData = [];
 
-    async function getPrediction() {
-        const years = document.getElementById("years").value;
+async function getPrediction() {
+    const years = document.getElementById("years").value;
 
+    try {
         const response = await fetch(`http://127.0.0.1:8000/predict?years=${years}`);
         const data = await response.json();
+
+        console.log(data);
+
+        if (!Array.isArray(data)) {
+            alert("Backend error");
+            return;
+        }
 
         fullData = data;
 
@@ -55,32 +59,48 @@
                     data: prices,
                     borderWidth: 2
                 }]
-            },
-            options: {
-                responsive: true
             }
         });
+
+    } catch (error) {
+        console.error(error);
+        alert("Error fetching data");
+    }
+}
+
+function getPriceByDate() {
+    const selectedDate = document.getElementById("dateInput").value;
+
+    if (!selectedDate || fullData.length === 0) {
+        document.getElementById("result").innerText = "Generate prediction first";
+        return;
     }
 
-    function getPriceByDate() {
-        const selectedDate = document.getElementById("dateInput").value;
+    // Convert to first day of month
+    const selected = new Date(selectedDate);
+    selected.setDate(1);
 
-        if (!selectedDate || fullData.length === 0) {
-            document.getElementById("result").innerText = "Please generate prediction first.";
-            return;
+    let closest = null;
+    let minDiff = Infinity;
+
+    fullData.forEach(item => {
+        const itemDate = new Date(item.ds);
+        const diff = Math.abs(itemDate - selected);
+
+        if (diff < minDiff) {
+            minDiff = diff;
+            closest = item;
         }
+    });
 
-        // Find closest date
-        let closest = fullData.reduce((prev, curr) => {
-            return Math.abs(new Date(curr.ds) - new Date(selectedDate)) <
-                   Math.abs(new Date(prev.ds) - new Date(selectedDate)) ? curr : prev;
-        });
-
+    if (closest) {
         document.getElementById("result").innerText =
-            `Predicted Price on ${selectedDate} ≈ ₹${closest.yhat.toFixed(2)}`;
+            `Predicted Price ≈ ₹${closest.yhat.toFixed(2)} on ${new Date(closest.ds).toLocaleDateString()}`;
+    } else {
+        document.getElementById("result").innerText = "No data available";
     }
+}
 </script>
-```
 
 </body>
 </html>
