@@ -12,7 +12,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 # Load model once
-with open("model.pkl", "rb") as f:
+with open("Backend/model.pkl", "rb") as f:
     model = pickle.load(f)
 
 @app.get("/")
