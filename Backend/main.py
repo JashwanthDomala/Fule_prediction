@@ -94,3 +94,5 @@ import pickle
 
 with open("model.pkl", "wb") as f:
     pickle.dump(model, f)
+
+forecast[['ds', 'yhat']].to_csv("predictions.csv", index=False)
