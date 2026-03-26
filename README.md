@@ -5,7 +5,7 @@
 This project is a **Machine Learning-based Fuel Price Prediction System** that forecasts future fuel prices using historical data. It uses **time series forecasting (Prophet)** and exposes predictions through a **FastAPI backend**, with a simple **HTML + JavaScript frontend** for visualization.
 
 ---
-
+![Project Screenshot](./assets/image.png)
 ## 🚀 Features
 
 * 📊 Predict fuel prices for future years
