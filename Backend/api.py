@@ -4,7 +4,7 @@ import pandas as pd
 app = FastAPI()
 
 # Load precomputed data
-df = pd.read_csv("predictions.csv")
+df = pd.read_csv("Backend/predictions.csv")
 
 @app.get("/")
 def home():
