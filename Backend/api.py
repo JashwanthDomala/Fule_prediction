@@ -1,9 +1,18 @@
 from fastapi import FastAPI, HTTPException
 from pathlib import Path
 import pandas as pd
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allow all (for development)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Correct path (same folder as api.py)
 BASE_DIR = Path(__file__).resolve().parent
 csv_path = BASE_DIR / "predictions.csv"
