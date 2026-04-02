@@ -60,8 +60,8 @@ frontend/
 ### 1. Clone Repository
 
 ```
-git clone https://github.com/your-username/fuel-price-prediction.git
-cd fuel-price-prediction
+git clone https://github.com/JashwanthDomala/Fule_prediction.git
+cd Fule_prediction
 ```
 
 ---
