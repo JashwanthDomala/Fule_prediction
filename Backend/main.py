@@ -1,98 +1,73 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
-
-df = pd.read_csv("petrol_price.csv")
-
-df.columns = df.columns.str.strip()
-
-print(df.columns)
-df = df[['date', 'Delhi']]
-df.columns = ['date', 'price']
-df['date'] = pd.to_datetime(df['date'], format='%Y_%b')
-df = df.sort_values('date')
-print(df.isnull().sum())
-df = df.dropna()
-print(df.head())
-print(df.tail())
-print(df.dtypes)
-
-import matplotlib.pyplot as plt
-
-# df.plot(x='date', y='price', title="Petrol Price Trend")
-# plt.show()
-
-df.to_csv("clean_petrol.csv", index=False)
-
-df.set_index('date', inplace=True)
-
-df = df.asfreq('MS')
-
-df = df.ffill()
-
-
-
-df = df.reset_index()
-
-df.columns = ['ds', 'y']
-print(df.head())
-print(df.dtypes)
-df.to_csv("prophet_ready.csv", index=False)
-
-
-
-# model
-
-from prophet import Prophet
-
-model = Prophet()
-
-model.fit(df)
-
-future = model.make_future_dataframe(periods=60, freq='MS')
-
-forecast = model.predict(future)
-
-print(forecast[['ds', 'yhat']].tail())
-
-import matplotlib.pyplot as plt
-
-model.plot(forecast)
-plt.show()
-
-
-# training 
-
-# ===== DAY 5: TRAIN TEST SPLIT =====
-
-train_size = int(len(df) * 0.8)
-
-train = df[:train_size]
-test = df[train_size:]
-
-model = Prophet()
-model.fit(train)
-
-future = model.make_future_dataframe(periods=len(test), freq='MS')
-
-forecast = model.predict(future)
-
-forecast_test = forecast[['ds', 'yhat']].tail(len(test))
-
-comparison = test.merge(forecast_test, on='ds')
-
-print(comparison.head())
-
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-import numpy as np
-
-mae = mean_absolute_error(comparison['y'], comparison['yhat'])
-rmse = np.sqrt(mean_squared_error(comparison['y'], comparison['yhat']))
-
-print("MAE:", mae)
-print("RMSE:", rmse)
-
 import pickle
 
-with open("model.pkl", "wb") as f:
-    pickle.dump(model, f)
+app = FastAPI()
 
-forecast[['ds', 'yhat']].to_csv("predictions.csv", index=False)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+try:
+    with open("model.pkl", "rb") as f:
+        model = pickle.load(f)
+    print("Model loaded")
+except:
+    model = None
+
+
+@app.get("/")
+def home():
+    return {"message": "Fuel Prediction API Running"}
+
+
+@app.get("/predict_by_date")
+def predict_by_date(date: str):
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded")
+
+    try:
+        input_date = pd.to_datetime(date).to_period('M').to_timestamp()
+
+        future_df = pd.DataFrame({'ds': [input_date]})
+
+        forecast = model.predict(future_df)
+
+        price = float(forecast['yhat'].iloc[0])
+
+        return {
+            "date": str(input_date.date()),
+            "predicted_price": round(price, 2)
+        }
+
+    except Exception as e:
+        print("ERROR:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/predict_range")
+def predict_range(years: int = 5):
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded")
+
+    try:
+        future_dates = pd.date_range(
+            start=pd.Timestamp.today().to_period('M').to_timestamp(),
+            periods=years * 12,
+            freq='MS'
+        )
+
+        future_df = pd.DataFrame({'ds': future_dates})
+
+        forecast = model.predict(future_df)
+
+        return forecast[['ds', 'yhat']].to_dict(orient="records")
+
+    except Exception as e:
+        print("ERROR:", e)
+        raise HTTPException(status_code=500, detail=str(e))
