@@ -1,13 +1,10 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
-from prophet import Prophet
+import numpy as np
+import pickle
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
-
-
-import os
-print("Current directory:", os.getcwd())
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,73 +13,58 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Load data and train model at startup
 try:
-    df = pd.read_csv("train_data.csv")
-    df['ds'] = pd.to_datetime(df['ds'])
+    with open("model.pkl", "rb") as f:
+        model, poly = pickle.load(f)
 
-    model = Prophet(
-        yearly_seasonality=True,
-        changepoint_prior_scale=0.5
-    )
+    df = pd.read_csv("petrol_price.csv")
+    df['date'] = pd.to_datetime(df['date'], format='%Y_%b')
 
-    model.fit(df)
+    df = df.sort_values('date')
+    df = df.drop_duplicates(subset='date', keep='last')
 
-    print("✅ Model trained at startup")
+    base_length = len(df)
+
+    print("✅ Model loaded")
 
 except Exception as e:
-    print("❌ ERROR:", e)
+    print("❌ ERROR LOADING MODEL:", e)
     model = None
 
 
 @app.get("/")
 def home():
-    return {"message": "Fuel Prediction API Running"}
-
-
-@app.get("/predict_by_date")
-def predict_by_date(date: str):
-    if model is None:
-        raise HTTPException(status_code=500, detail="Model not available")
-
-    try:
-        input_date = pd.to_datetime(date).to_period('M').to_timestamp()
-
-        future_df = pd.DataFrame({'ds': [input_date]})
-
-        forecast = model.predict(future_df)
-
-        price = float(forecast['yhat'].iloc[0])
-
-        return {
-            "date": str(input_date.date()),
-            "predicted_price": round(price, 2)
-        }
-
-    except Exception as e:
-        print("ERROR:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"message": "API Running"}
 
 
 @app.get("/predict_range")
 def predict_range(years: int = 5):
     if model is None:
-        raise HTTPException(status_code=500, detail="Model not available")
+        raise HTTPException(status_code=500, detail="Model not loaded")
 
     try:
+        periods = years * 12
+
+        future_index = np.arange(base_length, base_length + periods)
+
+        # 🔥 FIX: reshape correctly
+        future_index = future_index.reshape(-1, 1)
+
+        X = poly.transform(future_index)
+
+        preds = model.predict(X)
+
         future_dates = pd.date_range(
-            start=pd.Timestamp.today().to_period('M').to_timestamp(),
-            periods=years * 12,
+            start=pd.Timestamp.today(),
+            periods=periods,
             freq='MS'
         )
 
-        future_df = pd.DataFrame({'ds': future_dates})
-
-        forecast = model.predict(future_df)
-
-        return forecast[['ds', 'yhat']].to_dict(orient="records")
+        return [
+            {"ds": str(d.date()), "yhat": float(p)}
+            for d, p in zip(future_dates, preds)
+        ]
 
     except Exception as e:
-        print("ERROR:", e)
+        print("❌ ERROR IN PREDICT:", e)
         raise HTTPException(status_code=500, detail=str(e))

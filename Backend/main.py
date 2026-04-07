@@ -1,73 +1,81 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+
+# ================= LOAD =================
+
+df = pd.read_csv("petrol_price.csv")
+
+df.columns = df.columns.str.strip()
+
+df = df[['date', 'Delhi']]
+df.columns = ['date', 'price']
+
+df['date'] = pd.to_datetime(df['date'], format='%Y_%b')
+
+df = df.sort_values('date')
+
+df = df.drop_duplicates(subset='date', keep='last')
+
+df = df.dropna()
+
+# ================= TIME SERIES =================
+
+df.set_index('date', inplace=True)
+
+df = df.asfreq('MS')
+
+df['price'] = df['price'].interpolate()
+
+df = df.reset_index()
+
+# ================= FEATURE ENGINEERING =================
+
+df['time_index'] = np.arange(len(df))
+
+# Polynomial features (curve instead of straight line)
+poly = PolynomialFeatures(degree=2)
+X = poly.fit_transform(df[['time_index']])
+
+y = df['price']
+
+# ================= TRAIN =================
+
+model = LinearRegression()
+model.fit(X, y)
+
+print("Model trained")
+
+# ================= FUTURE =================
+
+future_periods = 60
+
+future_index = np.arange(len(df), len(df) + future_periods)
+
+future_X = poly.transform(future_index.reshape(-1, 1))
+
+future_pred = model.predict(future_X)
+
+# ================= PLOT =================
+
+plt.figure(figsize=(10,5))
+
+plt.plot(df['date'], df['price'], label="Actual")
+future_dates = pd.date_range(start=df['date'].iloc[-1], periods=future_periods+1, freq='MS')[1:]
+
+plt.plot(future_dates, future_pred, label="Prediction", color='green')
+
+plt.legend()
+plt.title("Petrol Price Prediction (Improved)")
+plt.show()
+
+# ================= SAVE =================
+
 import pickle
 
-app = FastAPI()
+with open("model.pkl", "wb") as f:
+    pickle.dump((model, poly), f)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-try:
-    with open("model.pkl", "rb") as f:
-        model = pickle.load(f)
-    print("Model loaded")
-except:
-    model = None
-
-
-@app.get("/")
-def home():
-    return {"message": "Fuel Prediction API Running"}
-
-
-@app.get("/predict_by_date")
-def predict_by_date(date: str):
-    if model is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
-
-    try:
-        input_date = pd.to_datetime(date).to_period('M').to_timestamp()
-
-        future_df = pd.DataFrame({'ds': [input_date]})
-
-        forecast = model.predict(future_df)
-
-        price = float(forecast['yhat'].iloc[0])
-
-        return {
-            "date": str(input_date.date()),
-            "predicted_price": round(price, 2)
-        }
-
-    except Exception as e:
-        print("ERROR:", e)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/predict_range")
-def predict_range(years: int = 5):
-    if model is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
-
-    try:
-        future_dates = pd.date_range(
-            start=pd.Timestamp.today().to_period('M').to_timestamp(),
-            periods=years * 12,
-            freq='MS'
-        )
-
-        future_df = pd.DataFrame({'ds': future_dates})
-
-        forecast = model.predict(future_df)
-
-        return forecast[['ds', 'yhat']].to_dict(orient="records")
-
-    except Exception as e:
-        print("ERROR:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+print("✅ Model saved")

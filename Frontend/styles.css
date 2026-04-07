@@ -1,8 +1,10 @@
 body{
-    background-color: #111;
+    background-color: #f4efef;
+    display : flex;
+    justify-items: center;
 }
 h1{
-    color: #bbb;
+    color: #ffffff;
     font-family: 'Times New Roman', Times, serif;
 }
 #years{
